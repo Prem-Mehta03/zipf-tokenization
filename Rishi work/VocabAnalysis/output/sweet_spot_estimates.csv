@@ -1,0 +1,4 @@
+tokenizer,plateau_detected,plateau_corpus_fraction,tokens_processed_at_plateau,observed_vocab_at_plateau,tokenizer_total_vocab,vocab_coverage_percent,criterion_used,note
+LLaMA,True,0.4,9629782,59233,128256,46.183414421157686,"relative marginal growth < 0.05 of initial, for 2 consecutive checkpoints",
+Qwen,True,0.4,10018847,57388,151665,37.83865756766558,"relative marginal growth < 0.05 of initial, for 2 consecutive checkpoints",
+Kimi,True,0.4,9658895,56759,163840,34.6429443359375,"relative marginal growth < 0.05 of initial, for 2 consecutive checkpoints",
