@@ -1,0 +1,15 @@
+# Person 2 + Person 3 analysis dependencies
+# Install:  pip install -r requirements.txt
+
+# Core analysis
+numpy>=1.24
+pandas>=2.0
+scipy>=1.10
+matplotlib>=3.7
+
+# Tokenizers (Part A / Part B of vocab_tokenizer_analysis.py)
+transformers>=4.40
+sentencepiece>=0.1.99
+
+# Optional: nicer terminal tables. Both scripts fall back to pandas if absent.
+tabulate>=0.9
