@@ -92,7 +92,6 @@ least frequent (rank 1 = most common token). Example:
 [
   ["the", 823145],
   [" of", 601233],
-  ...
 ]
 ```
  
