@@ -18,32 +18,33 @@ vocabulary size.
 ## Repo Structure
 
 ```
-IR_Assignment2/
+zipf-tokenization/
 ├── IR_Assignment2_Report.pdf          # Final report (LaTeX-built)
 ├── Corpus+Tokenization/               # Mehta Prem — see its own README for details
 │   ├── corpus_download.py
-│   ├── tokenize_text.py
-│   └── data/
+│   └── tokenize_text.py
+├── data/
 │       ├── raw_text/                  # Cleaned Wikipedia text per language
 │       └── token_frequency/           # Token frequency data per language × tokenizer
 ├── Tokenizer_and_vocabulary_comparison/
-│   ├── ZipfAnalysis/output/           # Yash Saxena — Zipf's Law analysis
-│   │   ├── plots/                     # 9 rank-frequency plots (3 languages × 3 tokenizers)
-│   │   ├── zipf_results.csv
-│   │   └── zipf_variation_summary.csv
-│   ├── VocabAnalysis/output/          # Rishi Kumar Motwani — vocab/tokenizer comparison
+│   │── VocabAnalysis/output/          # Rishi Kumar Motwani — vocab/tokenizer comparison
 │   │   ├── vocab_growth.png
 │   │   ├── marginal_vocab_growth.png
 │   │   ├── vocab_growth_results.csv
 │   │   ├── tokenizer_comparison.csv
-│   │   ├── sweet_spot_estimates.csv
-│   │   └── vocab_tokenizer_analysis.py
-│   └── data/
+│   │   └── sweet_spot_estimates.csv
+│   └── vocab_tokenizer_analysis.py
+│   
+├── ZipfAnalysis/output/           # Yash Saxena — Zipf's Law analysis
+│   ├── plots/                     # 9 rank-frequency plots (3 languages × 3 tokenizers)
+│   ├── zipf_results.csv
+│   └── zipf_variation_summary.csv
 └── synthesize/                        # Asvin Sunderiyal — synthesis & criterion
     ├── synthesize.py
-    ├── synthesis_summary.md
+    ├── final_report.md
     └── output/
         ├── combined_table.csv
+        ├── zipf_variation_sizes.csv
         └── recommended_vocab_sizes.csv
 ```
 
@@ -79,9 +80,19 @@ Kimi (34.6%), suggesting LLaMA's smaller vocabulary is more English-concentrated
 
 **Synthesis & criterion (Asvin Sunderiyal):** Proposed criterion — recommend vocabulary
 size where relative marginal growth falls below 5% of its initial value for two
-consecutive checkpoints — validated on English and cross-checked against the Zipf fits.
+consecutive checkpoints — applied tokenizer-wide (where it cleanly detects a plateau) and
+cross-checked against the Zipf fits. Applied at the language-specific level, the same
+criterion doesn't yet detect a plateau even for English within the sampled range.
 Full derivation and recommended vocab sizes per language×tokenizer are in
 `synthesize/output/` and Section 5 of the final report.
+
+## Open Items
+
+- Growth checkpoints were computed for English only, and even English's own language-level
+  curve doesn't yet satisfy the plateau criterion within the sampled range — only the
+  pooled, tokenizer-wide curve triggers a detected plateau. All nine recommended vocab
+  sizes currently use this tokenizer-wide fallback rather than a directly measured
+  language-specific plateau (see report, Section 6).
 
 ## How to Reproduce
 
