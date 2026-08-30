@@ -22,15 +22,15 @@ IR_Assignment2/
 ├── IR_Assignment2_Report.pdf          # Final report (LaTeX-built)
 ├── Corpus+Tokenization/               # Mehta Prem — see its own README for details
 │   ├── corpus_download.py
-│   └── tokenize_text.py
-├── data/
+│   ├── tokenize_text.py
+│   └── data/
 │       ├── raw_text/                  # Cleaned Wikipedia text per language
 │       └── token_frequency/           # Token frequency data per language × tokenizer
-├── ZipfAnalysis/output/           # Yash Saxena — Zipf's Law analysis
+├── Tokenizer_and_vocabulary_comparison/
+│   ├── ZipfAnalysis/output/           # Yash Saxena — Zipf's Law analysis
 │   │   ├── plots/                     # 9 rank-frequency plots (3 languages × 3 tokenizers)
 │   │   ├── zipf_results.csv
 │   │   └── zipf_variation_summary.csv
-├── Tokenizer_and_vocabulary_comparison/
 │   ├── VocabAnalysis/output/          # Rishi Kumar Motwani — vocab/tokenizer comparison
 │   │   ├── vocab_growth.png
 │   │   ├── marginal_vocab_growth.png
@@ -38,13 +38,13 @@ IR_Assignment2/
 │   │   ├── tokenizer_comparison.csv
 │   │   ├── sweet_spot_estimates.csv
 │   │   └── vocab_tokenizer_analysis.py
-│   └── vocab_tokenizer_analysis.py
+│   └── data/
 └── synthesize/                        # Asvin Sunderiyal — synthesis & criterion
     ├── synthesize.py
+    ├── synthesis_summary.md
     └── output/
         ├── combined_table.csv
-        ├── recommended_vocab_sizes.csv
-        └── synthesis_summary.md
+        └── recommended_vocab_sizes.csv
 ```
 
 ## Assignment Goals
@@ -68,7 +68,9 @@ vs. LLaMA's 10.5M on the same text, despite fewer unique tokens).
 **Zipf's Law (Yash Saxena):** A single global exponent fits English poorly on the full
 rank range (R²≈0.84) but very well on the head only (R²>0.99) — the opposite pattern
 holds for Hindi and Arabic. English's exponent is remarkably stable across tokenizers
-(range s=0.016), while Hindi's is the most volatile (range s=0.540).
+(range s=0.016), while Hindi's is the most volatile (range s=0.540). Averaged across
+both groupings, language choice drives more exponent variation than tokenizer choice
+does (mean range 0.55 vs. 0.32).
 
 **Vocabulary & tokenizer comparison (Rishi Kumar Motwani):** English vocabulary growth
 plateaus at ~40% of the processed corpus across all three tokenizers. LLaMA reaches a
