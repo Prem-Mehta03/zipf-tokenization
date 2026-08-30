@@ -3,52 +3,95 @@ Person 4 -- Synthesis & Proposed Vocab-Size Criterion
 =====================================================
 
 Reads Person 2's Zipf analysis output and Person 3's vocab/tokenizer
-comparison output directly, combines them, and proposes a simple rule of
-thumb for picking vocab size.
+comparison output, combines them, and proposes a simple rule of thumb for
+picking vocab size.
 
-Expected repo layout (this script lives in Person4-Synthesis/, a sibling of
-the other two folders):
+Path resolution is generic: rather than hardcoding the exact folder depth
+each input file lives at (which is an assumption that breaks the moment
+someone reorganizes a subfolder), this script recursively searches the
+repo for each required filename by name and uses whatever it finds. The
+only contract this script depends on is the filenames themselves:
 
-    zipf-tokenization/
-    |-- Corpus+Tokenization/
-    |-- ZipfAnalysis/
-    |   `-- output/
-    |       |-- zipf_results.csv
-    |       `-- zipf_variation_summary.csv
-    |-- Tokenizer_and_vocabulary_comparison/
-    |   `-- VocabAnalysis/
-    |       `-- output/
-    |           |-- vocab_growth_results.csv
-    |           |-- tokenizer_comparison.csv
-    |           `-- sweet_spot_estimates.csv
-    `-- Person4-Synthesis/
-        |-- synthesize.py   <- this file
-        `-- output/         <- created by this script
+    zipf_results.csv
+    zipf_variation_summary.csv
+    vocab_growth_results.csv
+    tokenizer_comparison.csv
+    sweet_spot_estimates.csv
 
-Run from anywhere; paths below are resolved relative to this script's
-location, not the current working directory.
+as of the current repo tree these live at:
+
+    ZipfAnalysis/output/zipf_results.csv
+    ZipfAnalysis/output/zipf_variation_summary.csv
+    Tokenizer_and_vocabulary_comparison/VocabAnalysis/output/vocab_growth_results.csv
+    Tokenizer_and_vocabulary_comparison/VocabAnalysis/output/tokenizer_comparison.csv
+    Tokenizer_and_vocabulary_comparison/VocabAnalysis/output/sweet_spot_estimates.csv
+
+but if Person 2 or Person 3 move their output folder, this script keeps
+working as long as the filenames stay the same. If a filename can't be
+found anywhere under the repo root, or is found in more than one place,
+the script fails loudly with the path(s) it looked at rather than silently
+picking one.
+
+This script itself lives in `synthesize/` at the repo root, and writes its
+own output to `synthesize/output/`:
+    combined_table.csv
+    recommended_vocab_sizes.csv
+    zipf_variation_summary.csv   (passed through unchanged, for reference)
+
+This script only produces CSVs -- it does not generate a markdown
+write-up. Upload the CSVs from `synthesize/output/` to get a written
+summary/report; that step happens separately, from the real numbers, not
+from this script's own guesses about them.
 """
 
 import os
+import glob
 import pandas as pd
 
 # ---------------------------------------------------------------------------
-# Paths (relative to this script's own location, so `python synthesize.py`
-# works regardless of the caller's cwd)
+# Path resolution -- generic, filename-based discovery under the repo root
 # ---------------------------------------------------------------------------
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
-
-ZIPF_DIR = os.path.join(REPO_ROOT, "ZipfAnalysis", "output")
-VOCAB_DIR = os.path.join(REPO_ROOT, "Tokenizer_and_vocabulary_comparison", "VocabAnalysis", "output")
-
-ZIPF_RESULTS_PATH = os.path.join(ZIPF_DIR, "zipf_results.csv")
-ZIPF_VARIATION_PATH = os.path.join(ZIPF_DIR, "zipf_variation_summary.csv")
-VOCAB_GROWTH_PATH = os.path.join(VOCAB_DIR, "vocab_growth_results.csv")
-TOKENIZER_COMPARISON_PATH = os.path.join(VOCAB_DIR, "tokenizer_comparison.csv")
-SWEET_SPOT_PATH = os.path.join(VOCAB_DIR, "sweet_spot_estimates.csv")
-
 OUT_DIR = os.path.join(HERE, "output")
+
+REQUIRED_FILES = {
+    "zipf_results": "zipf_results.csv",
+    "zipf_variation": "zipf_variation_summary.csv",
+    "vocab_growth": "vocab_growth_results.csv",
+    "tokenizer_comparison": "tokenizer_comparison.csv",
+    "sweet_spot": "sweet_spot_estimates.csv",
+}
+
+
+def find_file(filename, search_root=REPO_ROOT, exclude_dir=OUT_DIR):
+    """
+    Recursively search search_root for a file named `filename`, ignoring
+    this script's own output directory (so re-running the script doesn't
+    accidentally pick up its own previous output). Fails loudly rather than
+    silently guessing if the file is missing or ambiguous.
+    """
+    matches = [
+        p for p in glob.glob(os.path.join(search_root, "**", filename), recursive=True)
+        if not os.path.abspath(p).startswith(os.path.abspath(exclude_dir))
+    ]
+    if not matches:
+        raise FileNotFoundError(
+            f"Could not find '{filename}' anywhere under {search_root}. "
+            f"Make sure Person 2's/Person 3's output has been pulled into your clone."
+        )
+    if len(matches) > 1:
+        raise RuntimeError(
+            f"Found more than one '{filename}' under {search_root}:\n  "
+            + "\n  ".join(matches)
+            + "\nRemove the stale copy or rename one so this script knows which to use."
+        )
+    return matches[0]
+
+
+def resolve_input_paths():
+    return {key: find_file(filename) for key, filename in REQUIRED_FILES.items()}
+
 
 # ---------------------------------------------------------------------------
 # Criterion parameters
@@ -57,14 +100,13 @@ OUT_DIR = os.path.join(HERE, "output")
 # range of (0.8, 1.2), borrowed from classic word-level Zipf studies. Running
 # it against the real data showed that was wrong for this project: BPE/
 # subword token distributions are well documented to have steeper Zipf
-# slopes than word-level ones, and every single language x tokenizer row
-# here has s well above 1.2 (observed range ~1.3-2.2). A fixed literature
-# band for the wrong unit of analysis flagged 100% of rows as "review" --
-# not a useful signal. Confidence below is instead based on (a) fit quality
-# (R^2) and (b) whether a tokenizer's exponent for a given language is an
-# outlier relative to that *same* tokenizer's exponents on the other
-# languages, which is a same-tokenizer conceptual band derived from the
-# data itself rather than an external constant that doesn't apply here.
+# slopes than word-level ones, and every language x tokenizer row observed
+# so far has s well above 1.2 (~1.3-2.2). A fixed literature band for the
+# wrong unit of analysis flagged effectively every row as "review" -- not a
+# useful signal. Confidence below is instead based on (a) fit quality (R^2)
+# and (b) whether a tokenizer's exponent for a given language is an outlier
+# relative to that *same* tokenizer's exponents on the other languages,
+# which is a data-derived band rather than an external constant.
 # ---------------------------------------------------------------------------
 MIN_R_SQUARED = 0.90                # below this, don't trust the exponent fit
 EXPONENT_OUTLIER_Z = 1.5            # |z-score| within a tokenizer's own languages
@@ -72,25 +114,14 @@ PLATEAU_RELATIVE_THRESHOLD = 0.05   # mirrors Person 3's own plateau criterion
 PLATEAU_CONSECUTIVE_CHECKPOINTS = 2
 
 
-def _require(path, who):
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"Missing {path} -- expected from {who}. Pull latest main and re-run.")
-
-
 def load_inputs():
-    _require(ZIPF_RESULTS_PATH, "Person 2 (ZipfAnalysis)")
-    _require(ZIPF_VARIATION_PATH, "Person 2 (ZipfAnalysis)")
-    _require(VOCAB_GROWTH_PATH, "Person 3 (Tokenizer_and_vocabulary_comparison)")
-    _require(TOKENIZER_COMPARISON_PATH, "Person 3 (Tokenizer_and_vocabulary_comparison)")
-    _require(SWEET_SPOT_PATH, "Person 3 (Tokenizer_and_vocabulary_comparison)")
-
-    zipf_results = pd.read_csv(ZIPF_RESULTS_PATH)
-    zipf_variation = pd.read_csv(ZIPF_VARIATION_PATH)
-    vocab_growth = pd.read_csv(VOCAB_GROWTH_PATH)
-    tokenizer_comparison = pd.read_csv(TOKENIZER_COMPARISON_PATH)
-    sweet_spot = pd.read_csv(SWEET_SPOT_PATH)
-
-    return zipf_results, zipf_variation, vocab_growth, tokenizer_comparison, sweet_spot
+    paths = resolve_input_paths()
+    zipf_results = pd.read_csv(paths["zipf_results"])
+    zipf_variation = pd.read_csv(paths["zipf_variation"])
+    vocab_growth = pd.read_csv(paths["vocab_growth"])
+    tokenizer_comparison = pd.read_csv(paths["tokenizer_comparison"])
+    sweet_spot = pd.read_csv(paths["sweet_spot"])
+    return zipf_results, zipf_variation, vocab_growth, tokenizer_comparison, sweet_spot, paths
 
 
 def compute_language_level_plateau(
@@ -166,7 +197,8 @@ def detect_consistent_low_fit_language(zipf_results):
     """
     Checks whether one language has the lowest R^2 across *every* tokenizer
     -- a pattern that points at the corpus/language itself rather than any
-    one tokenizer, and is worth calling out as Person 2's "surprising case."
+    one tokenizer. Kept as a helper for ad-hoc use; not called by default
+    since this script only writes CSVs now (see module docstring).
     Returns the language name if such a pattern exists, else None.
     """
     pivot = zipf_results.pivot(index="tokenizer", columns="language", values="r_squared")
@@ -251,140 +283,16 @@ def recommend_vocab_sizes(combined):
     ]].sort_values(["language", "tokenizer"])
 
 
-def write_summary_md(recommendation_df, zipf_variation, zipf_results, path):
-    low_fit_lang, r2_pivot = detect_consistent_low_fit_language(zipf_results)
-
-    with open(path, "w") as f:
-        f.write("# Person 4 -- Synthesis & Proposed Vocab-Size Criterion\n\n")
-
-        f.write("## Proposed criterion\n\n")
-        f.write(
-            "Recommend vocab size at the point where the vocabulary-growth "
-            "curve plateaus, computed **per language x tokenizer** from "
-            "`vocab_growth_results.csv` (same style of criterion Person 3 "
-            "used tokenizer-wide: relative marginal growth below "
-            f"{PLATEAU_RELATIVE_THRESHOLD:.0%} of its initial value for "
-            f"{PLATEAU_CONSECUTIVE_CHECKPOINTS} consecutive checkpoints), "
-            "falling back to Person 3's tokenizer-level plateau "
-            "(`sweet_spot_estimates.csv`) and then the tokenizer's full "
-            "trained vocab size if no plateau is found. Cross-check against "
-            "Person 2's Zipf fit: rows with R^2 below "
-            f"{MIN_R_SQUARED} are flagged `low_r2_review`, and rows whose "
-            "exponent is a statistical outlier *relative to that same "
-            "tokenizer's exponent on the other two languages* "
-            f"(|z| > {EXPONENT_OUTLIER_Z}) are flagged `atypical_exponent_review`.\n\n"
-        )
-        f.write(
-            "**Why not a fixed 'good' exponent range (e.g. 0.8-1.2)?** That "
-            "range comes from word-level Zipf studies. Every language x "
-            "tokenizer pair in this project has s well above 1.2 (observed "
-            "range ~1.3-2.2), consistent with BPE/subword tokens being known "
-            "to follow a steeper Zipf slope than whole words. Applying a "
-            "word-level band here would flag 100% of rows as suspect and "
-            "carry no signal, so confidence is instead based on fit quality "
-            "and each tokenizer's own internal consistency across "
-            "languages.\n\n"
-        )
-
-        f.write("## Headline result 1: tokenizer-level plateau vs. trained vocab size\n\n")
-        f.write(
-            "Per Person 3's tokenizer-wide sweet-spot estimate "
-            "(`sweet_spot_estimates.csv`), the vocabulary-growth curve "
-            "plateaus well under the tokenizer's full trained vocab size:\n\n"
-        )
-        f.write("| tokenizer | plateau vocab (tokenizer-wide) | full trained vocab | coverage |\n")
-        f.write("|---|---|---|---|\n")
-        for tok, row in recommendation_df.groupby("tokenizer").first().iterrows():
-            full = row["tokenizer_total_vocab"]
-            plateau = row["observed_vocab_at_plateau"]
-            pct = plateau / full * 100 if pd.notna(full) and full else float("nan")
-            f.write(f"| {tok} | {plateau:.0f} | {full:.0f} | {pct:.1f}% |\n")
-        f.write(
-            "\nRoughly a third to a half of each tokenizer's trained "
-            "vocabulary is doing essentially all the work -- the rest sees "
-            "vanishingly few additional unique tokens as the corpus grows "
-            "further.\n\n"
-        )
-
-        f.write("## Headline result 2: the plateau is not the same across languages\n\n")
-        f.write(
-            "The tokenizer-wide number above hides real per-language "
-            "differences. Computing the plateau separately per language "
-            "(from `vocab_growth_results.csv`) instead of pooling all "
-            "languages together:\n\n"
-        )
-        lang_pivot = recommendation_df.pivot(
-            index="language", columns="tokenizer", values="observed_vocab_at_plateau_lang"
-        )
-        f.write(lang_pivot.round(0).to_markdown())
-        f.write(
-            "\n\nThe recommended vocab size per language-tokenizer pair "
-            "(`recommended_vocab_size` in the combined table below) uses "
-            "this language-level plateau first, since it's the number that "
-            "actually answers 'what's the sweet spot for *this* language,' "
-            "and only falls back to the tokenizer-wide figure when a "
-            "language-level plateau can't be detected.\n\n"
-        )
-
-        f.write("## Does the Zipf exponent shift more with language or tokenizer?\n\n")
-        f.write(
-            "From `zipf_variation_summary.csv` (Person 2's own comparison, "
-            "reused here rather than recomputed):\n\n"
-        )
-        f.write(zipf_variation.to_markdown(index=False))
-        f.write("\n\n")
-
-        f.write("## Surprising case\n\n")
-        if low_fit_lang is not None:
-            f.write(
-                f"**{low_fit_lang}** has the lowest Zipf-fit R^2 of the three "
-                f"languages for *every single tokenizer* (LLaMA, Qwen, and "
-                "Kimi alike) -- not just one tokenizer/language pairing. "
-                "That consistency across tokenizers points at something "
-                "about the corpus or language itself (sample composition, "
-                "cleaning, script-specific tokenization behavior) rather "
-                "than any one tokenizer's algorithm. Worth a follow-up look "
-                "before trusting that language's Zipf fit as strongly as "
-                "the other two.\n\n"
-            )
-            f.write(r2_pivot.round(3).to_markdown())
-            f.write("\n\n")
-        else:
-            f.write(
-                "No single language had the lowest R^2 across all three "
-                "tokenizers -- the fit-quality pattern isn't consistent "
-                "enough to call out one language as an outlier.\n\n"
-            )
-            f.write(r2_pivot.round(3).to_markdown())
-            f.write("\n\n")
-
-        f.write("## Combined results\n\n")
-        f.write(recommendation_df.round(3).to_markdown(index=False))
-        f.write("\n\n")
-
-        f.write("## Notes\n\n")
-        f.write(
-            "- `observed_vocab_at_plateau_lang` is computed by this script "
-            "directly from `vocab_growth_results.csv`; `observed_vocab_at_plateau` "
-            "is Person 3's tokenizer-only estimate from `sweet_spot_estimates.csv`. "
-            "`plateau_agreement_pct` shows how close the two are -- large gaps "
-            "are worth a manual look regardless of the confidence flag.\n"
-            "- `confidence = low_r2_review` or `atypical_exponent_review` rows "
-            "should get a manual look at Person 2's log-log plot before the "
-            "recommended vocab size is treated as final.\n"
-            f"- Thresholds (min R^2 {MIN_R_SQUARED}, exponent outlier z "
-            f"{EXPONENT_OUTLIER_Z}, plateau relative threshold "
-            f"{PLATEAU_RELATIVE_THRESHOLD:.0%}) are intentionally simple and "
-            "tunable -- a defensible rule of thumb, not a rigorously derived "
-            "cutoff.\n"
-        )
-    return path
 
 
 if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    zipf_results, zipf_variation, vocab_growth, tokenizer_comparison, sweet_spot = load_inputs()
+    zipf_results, zipf_variation, vocab_growth, tokenizer_comparison, sweet_spot, paths = load_inputs()
+
+    print("Resolved input files:")
+    for key, path in paths.items():
+        print(f"  {key}: {path}")
 
     combined = build_combined_table(zipf_results, tokenizer_comparison, sweet_spot, vocab_growth)
     combined.to_csv(os.path.join(OUT_DIR, "combined_table.csv"), index=False)
@@ -392,8 +300,14 @@ if __name__ == "__main__":
     recs = recommend_vocab_sizes(combined)
     recs.to_csv(os.path.join(OUT_DIR, "recommended_vocab_sizes.csv"), index=False)
 
-    summary_path = write_summary_md(recs, zipf_variation, zipf_results, os.path.join(OUT_DIR, "synthesis_summary.md"))
+    # copy zipf_variation_summary.csv through unchanged -- useful context for
+    # whoever writes the final summary/report, even though this script
+    # doesn't generate that write-up itself
+    zipf_variation.to_csv(os.path.join(OUT_DIR, "zipf_variation_summary.csv"), index=False)
 
     print(f"Wrote {OUT_DIR}/combined_table.csv")
     print(f"Wrote {OUT_DIR}/recommended_vocab_sizes.csv")
-    print(f"Wrote {summary_path}")
+    print(f"Wrote {OUT_DIR}/zipf_variation_summary.csv")
+    print()
+    print("This script only writes CSVs -- no markdown summary is generated.")
+    print("Upload the three CSVs above to get a written summary/report.")
